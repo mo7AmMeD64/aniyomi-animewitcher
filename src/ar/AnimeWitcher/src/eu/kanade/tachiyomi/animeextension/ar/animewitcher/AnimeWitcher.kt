@@ -31,9 +31,6 @@ class AnimeWitcher : AnimeHttpSource(), ConfigurableAnimeSource {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
 
-    // ══════════════════════════════════════════
-    // الصفحة الرئيسية
-    // ══════════════════════════════════════════
     override fun popularAnimeRequest(page: Int): Request =
         GET("$baseUrl/api/main?page=$page", headers)
 
@@ -41,23 +38,22 @@ class AnimeWitcher : AnimeHttpSource(), ConfigurableAnimeSource {
         val data = json.decodeFromString<MainResponse>(response.body.string())
         val animes = data.hits.map { hit ->
             SAnime.create().apply {
-                url           = hit.id
-                title         = hit.name
+                url = hit.id
+                title = hit.name
                 thumbnail_url = hit.poster
-                status        = SAnime.UNKNOWN
+                status = SAnime.UNKNOWN
             }
         }
         return AnimesPage(animes, data.page < data.nbPages)
     }
 
-    // ══════════════════════════════════════════
-    // البحث
-    // ══════════════════════════════════════════
-    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request =
-        if (query.isNotBlank())
+    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
+        return if (query.isNotBlank()) {
             GET("$baseUrl/api/search?q=${query.trim()}", headers)
-        else
+        } else {
             GET("$baseUrl/api/main?page=$page", headers)
+        }
+    }
 
     override fun searchAnimeParse(response: Response): AnimesPage {
         val url = response.request.url.toString()
@@ -65,11 +61,11 @@ class AnimeWitcher : AnimeHttpSource(), ConfigurableAnimeSource {
             val data = json.decodeFromString<SearchResponse>(response.body.string())
             val animes = data.hits.map { hit ->
                 SAnime.create().apply {
-                    url           = hit.id
-                    title         = hit.name
+                    url = hit.id
+                    title = hit.name
                     thumbnail_url = hit.poster
-                    description   = hit.story
-                    status        = SAnime.UNKNOWN
+                    description = hit.story
+                    status = SAnime.UNKNOWN
                 }
             }
             AnimesPage(animes, false)
@@ -78,47 +74,39 @@ class AnimeWitcher : AnimeHttpSource(), ConfigurableAnimeSource {
         }
     }
 
-    // ══════════════════════════════════════════
-    // تفاصيل الأنمي
-    // ══════════════════════════════════════════
     override fun animeDetailsRequest(anime: SAnime): Request =
         GET("$baseUrl/api/search?q=${anime.title}", headers)
 
     override fun animeDetailsParse(response: Response): SAnime =
         SAnime.create().apply { status = SAnime.UNKNOWN }
 
-    // ══════════════════════════════════════════
-    // الحلقات
-    // ══════════════════════════════════════════
     override fun episodeListRequest(anime: SAnime): Request =
         GET("$baseUrl/api/episodes?id=${anime.url}", headers)
 
     override fun episodeListParse(response: Response): List<SEpisode> {
         val animeId = response.request.url.queryParameter("id") ?: ""
-        val data    = json.decodeFromString<EpisodesResponse>(response.body.string())
+        val data = json.decodeFromString<EpisodesResponse>(response.body.string())
         return data.episodes.map { ep ->
             SEpisode.create().apply {
-                url            = "$animeId||${ep.id}"
-                name           = ep.name
+                url = "$animeId||${ep.id}"
+                name = ep.name
                 episode_number = ep.num.toFloat()
-                date_upload    = System.currentTimeMillis()
+                date_upload = System.currentTimeMillis()
             }
         }.reversed()
     }
 
-    // ══════════════════════════════════════════
-    // رابط التشغيل
-    // ══════════════════════════════════════════
     override fun videoListRequest(episode: SEpisode): Request {
-        val (animeId, epId) = episode.url.split("||")
+        val parts = episode.url.split("||")
+        val animeId = parts[0]
+        val epId = parts[1]
         return GET("$baseUrl/api/servers_resolved?anime=$animeId&ep=$epId", headers)
     }
 
     override fun videoListParse(response: Response): List<Video> {
-        val data   = json.decodeFromString<ServersResponse>(response.body.string())
+        val data = json.decodeFromString<ServersResponse>(response.body.string())
         val videos = mutableListOf<Video>()
 
-        // أولاً: Pixeldrain فقط
         for (sv in data.servers) {
             if (!sv.playable) continue
             if (!sv.url.contains("pixeldrain") && !sv.proxy_url.contains("pixeldrain")) continue
@@ -131,7 +119,6 @@ class AnimeWitcher : AnimeHttpSource(), ConfigurableAnimeSource {
             videos.add(Video(proxyUrl, label, proxyUrl))
         }
 
-        // إذا ما في PD، استخدم أي سيرفر شغال
         if (videos.isEmpty()) {
             for (sv in data.servers) {
                 if (!sv.playable) continue
@@ -145,19 +132,17 @@ class AnimeWitcher : AnimeHttpSource(), ConfigurableAnimeSource {
     }
 
     override fun latestUpdatesRequest(page: Int) = popularAnimeRequest(page)
+
     override fun latestUpdatesParse(response: Response) = popularAnimeParse(response)
 
-    // ══════════════════════════════════════════
-    // الإعدادات
-    // ══════════════════════════════════════════
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         ListPreference(screen.context).apply {
-            key         = PREF_QUALITY
-            title       = "الجودة المفضلة"
-            entries     = arrayOf("1080p", "720p", "480p", "360p")
+            key = PREF_QUALITY
+            title = "الجودة المفضلة"
+            entries = arrayOf("1080p", "720p", "480p", "360p")
             entryValues = arrayOf("1080", "720", "480", "360")
             setDefaultValue("1080")
-            summary     = "%s"
+            summary = "%s"
         }.also(screen::addPreference)
     }
 
@@ -165,9 +150,6 @@ class AnimeWitcher : AnimeHttpSource(), ConfigurableAnimeSource {
         private const val PREF_QUALITY = "preferred_quality"
     }
 
-    // ══════════════════════════════════════════
-    // Data Classes
-    // ══════════════════════════════════════════
     @Serializable
     data class MainResponse(
         val hits: List<AnimeHit> = emptyList(),
