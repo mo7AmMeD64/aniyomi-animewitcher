@@ -1,0 +1,83 @@
+name: Build AnimeWitcher APK
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+        with:
+          path: animewitcher-extension
+
+      - name: Checkout aniyomi-extensions base
+        uses: actions/checkout@v4
+        with:
+          repository: aniyomiorg/aniyomi-extensions
+          path: aniyomi-extensions
+          fetch-depth: 1
+
+      - name: Copy extension into base project
+        run: |
+          cp -r animewitcher-extension/src/ar/AnimeWitcher \
+            aniyomi-extensions/src/ar/AnimeWitcher
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Make gradlew executable
+        working-directory: aniyomi-extensions
+        run: chmod +x gradlew
+
+      - name: Build APK
+        working-directory: aniyomi-extensions
+        run: ./gradlew :src:ar:AnimeWitcher:assembleRelease
+
+      - name: Find APK
+        id: find_apk
+        working-directory: aniyomi-extensions
+        run: |
+          APK=$(find . -name "*.apk" -path "*/AnimeWitcher/*" | head -1)
+          echo "apk_path=$APK" >> $GITHUB_OUTPUT
+          echo "Found APK: $APK"
+
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnimeWitcher-extension
+          path: aniyomi-extensions/${{ steps.find_apk.outputs.apk_path }}
+          retention-days: 30
+
+      - name: Create Release
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: AnimeWitcher Extension v${{ github.run_number }}
+          files: aniyomi-extensions/${{ steps.find_apk.outputs.apk_path }}
+          body: |
+            ## AnimeWitcher Aniyomi Extension
+            
+            ### التثبيت
+            1. حمّل ملف APK
+            2. افتح Aniyomi
+            3. Browse → Extensions → أيقونة الملف
+            4. اختر الـ APK
+            
+            ### المصدر
+            https://1we323-witcher.hf.space
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
