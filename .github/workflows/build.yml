@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CI_CHUNK_SIZE: 65
+      CI_CHUNK_NUM: 0
 
     steps:
       - name: Checkout this repo
@@ -68,12 +69,10 @@ jobs:
           files: aniyomi-extensions/${{ steps.apk.outputs.path }}
           body: |
             ## AnimeWitcher — Aniyomi Extension
-            
             ### التثبيت في Aniyomi
             1. حمّل ملف APK من الأسفل
             2. افتح Aniyomi ← Browse ← Extensions
             3. اضغط أيقونة الملف ← اختر الـ APK
-            
             ### API
             https://1we323-witcher.hf.space
         env:
